@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Mô phỏng dao động lò xo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#181c19;
+    --panel:#232821;
+    --panel-2:#2b3128;
+    --seam:#3a4138;
+    --brass:#c99a5b;
+    --brass-dk:#8a6236;
+    --screen:#0c1710;
+    --phosphor:#7be08a;
+    --phosphor-dim:#2f5a3a;
+    --amber:#e2a63d;
+    --text:#e9e6da;
+    --text-dim:#9a9c8f;
+    --steel:#a9afa8;
+    --danger:#d9714f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    background-image:
+      radial-gradient(circle at 10% 10%, rgba(255,255,255,0.02), transparent 40%),
+      radial-gradient(circle at 90% 90%, rgba(255,255,255,0.02), transparent 40%);
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    padding:18px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .rig{
+    max-width:1080px;
+    margin:0 auto;
+    border:1px solid var(--seam);
+    border-radius:6px;
+    background:var(--panel);
+    box-shadow:0 30px 60px -30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03);
+    overflow:hidden;
+  }
+  .rig::before{
+    content:"";
+  }
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    padding:18px 22px 14px;
+    border-bottom:1px solid var(--seam);
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));
+  }
+  header h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:20px;
+    margin:0 0 4px;
+    letter-spacing:0.2px;
+    color:var(--text);
+  }
+  header p{
+    margin:0;
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .badge{
+    font-size:10px;
+    color:var(--amber);
+    border:1px solid var(--brass-dk);
+    padding:3px 8px;
+    border-radius:3px;
+    background:rgba(226,166,61,0.06);
+    white-space:nowrap;
+  }
+
+  .main{
+    display:grid;
+    grid-template-columns:1fr 1.15fr;
+    gap:1px;
+    background:var(--seam);
+  }
+  @media(max-width:820px){ .main{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel);
+    padding:16px 18px;
+  }
+  .panel h2{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:12px;
+    font-weight:600;
+    text-transform:none;
+    letter-spacing:0.3px;
+    color:var(--text-dim);
+    margin:0 0 10px;
+  }
+
+  /* rig visualization */
+  .rig-stage{
+    background:radial-gradient(ellipse at 50% 0%, #262b23, #1c211c 70%);
+    border:1px solid var(--seam);
+    border-radius:4px;
+    height:360px;
+    position:relative;
+    overflow:hidden;
+  }
+
+  /* oscilloscope screen */
+  .scope{
+    background:var(--screen);
+    border:1px solid #050a06;
+    border-radius:4px;
+    box-shadow:inset 0 0 30px rgba(0,0,0,0.6), inset 0 0 2px rgba(123,224,138,0.15);
+    height:230px;
+    position:relative;
+    overflow:hidden;
+  }
+  .scope canvas{ display:block; width:100%; height:100%; }
+  .scope .grid-overlay{
+    position:absolute; inset:0;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(123,224,138,0.06) 0 1px, transparent 1px calc(100%/6)),
+      repeating-linear-gradient(90deg, rgba(123,224,138,0.06) 0 1px, transparent 1px calc(100%/10));
+    pointer-events:none;
+  }
+
+  .readout-row{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:10px;
+    margin-top:12px;
+  }
+  .readout{
+    background:var(--panel-2);
+    border:1px solid var(--seam);
+    border-radius:4px;
+    padding:9px 10px;
+  }
+  .readout .lbl{ font-size:10px; color:var(--text-dim); margin-bottom:4px; }
+  .readout .val{ font-family:'Space Grotesk', sans-serif; font-size:19px; font-weight:600; color:var(--phosphor); }
+  .readout .val.amber{ color:var(--amber); }
+  .readout .unit{ font-size:10px; color:var(--text-dim); margin-left:3px; }
+
+  .note{
+    margin-top:12px;
+    font-size:11.5px;
+    line-height:1.55;
+    color:var(--text-dim);
+    border-left:2px solid var(--brass-dk);
+    padding:6px 0 6px 10px;
+  }
+
+  /* controls */
+  .controls{
+    padding:16px 18px;
+    border-top:1px solid var(--seam);
+    background:var(--panel-2);
+  }
+  .control-group{ margin-bottom:14px; }
+  .control-group:last-child{ margin-bottom:0; }
+  .control-group .lbl{
+    font-size:11px; color:var(--text-dim); margin-bottom:8px; display:block;
+  }
+  .spring-buttons{
+    display:flex; flex-wrap:wrap; gap:6px;
+  }
+  .spring-btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--text);
+    background:var(--panel);
+    border:1px solid var(--seam);
+    border-radius:3px;
+    padding:7px 10px;
+    cursor:pointer;
+    transition:border-color .15s, color .15s, background .15s;
+  }
+  .spring-btn:hover{ border-color:var(--brass-dk); }
+  .spring-btn.active{
+    background:rgba(226,166,61,0.1);
+    border-color:var(--amber);
+    color:var(--amber);
+  }
+
+  .slider-row{ display:flex; align-items:center; gap:12px; }
+  .slider-row input[type=range]{
+    flex:1;
+    accent-color:var(--amber);
+    height:4px;
+  }
+  .slider-row .num{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:13px;
+    font-weight:600;
+    color:var(--text);
+    min-width:64px;
+    text-align:right;
+  }
+
+  .action-row{ display:flex; gap:8px; margin-top:14px; }
+  .action-btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    padding:9px 16px;
+    border-radius:3px;
+    cursor:pointer;
+    border:1px solid var(--seam);
+    background:var(--panel);
+    color:var(--text);
+  }
+  .action-btn.primary{
+    background:linear-gradient(180deg, #d9b06a, var(--brass));
+    border-color:var(--brass-dk);
+    color:#241a0c;
+    font-weight:600;
+  }
+  .action-btn.primary:hover{ filter:brightness(1.06); }
+  .action-btn:not(.primary):hover{ border-color:var(--brass-dk); }
+
+  /* comparison table */
+  .compare{
+    padding:16px 18px 20px;
+    border-top:1px solid var(--seam);
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+  }
+  th, td{
+    text-align:left;
+    padding:7px 8px;
+    border-bottom:1px solid var(--seam);
+  }
+  th{
+    color:var(--text-dim);
+    font-weight:500;
+    font-size:10.5px;
+  }
+  td.num{ font-family:'Space Grotesk', sans-serif; text-align:right; }
+  tr.current td{ color:var(--amber); }
+  td.match{ color:var(--phosphor); }
+  td.mismatch{ color:var(--danger); }
+
+  footer{
+    padding:10px 22px 16px;
+    font-size:10.5px;
+    color:var(--text-dim);
+    text-align:center;
+    border-top:1px solid var(--seam);
+  }
+</style>
+</head>
+<body>
+
+<div class="rig">
+  <header>
+    <div>
+      <h1>Dao động điều hòa của lò xo xoắn</h1>
+      <p>Mô phỏng thí nghiệm P2132667 — hệ lò xo–vật nặng, đo chu kỳ bằng phương pháp dò đỉnh lực</p>
+    </div>
+    <div class="badge">CẢM BIẾN LỰC · MÔ PHỎNG</div>
+  </header>
+
+  <div class="main">
+    <div class="panel">
+      <h2>HỆ DAO ĐỘNG</h2>
+      <div class="rig-stage">
+        <svg id="rigSvg" viewBox="0 0 360 360" width="100%" height="100%"></svg>
+      </div>
+      <div class="note" id="physNote">
+        Mỗi lần ghi kéo dài 20 s. Trong 10 s đầu (vùng sáng), dao động được coi là gần lý tưởng nên T đo được rất ổn định và k tính ra khớp sát với lý thuyết — đây là giá trị được ghi vào bảng so sánh bên dưới. Sau 10 s (vùng tô nhạt màu vàng), ma sát nội tại tích lũy khiến biên độ giảm nhanh hơn và công thức T→k bắt đầu lệch — số liệu ở ô "k đo được" phía trên vẫn cập nhật liên tục để bạn thấy rõ độ lệch này.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>MÀN HÌNH LỰC F(t) — CẢM BIẾN</h2>
+      <div class="scope">
+        <canvas id="scopeCanvas"></canvas>
+        <div class="grid-overlay"></div>
+      </div>
+      <div class="readout-row" style="grid-template-columns:repeat(4, 1fr);">
+        <div class="readout">
+          <div class="lbl">Trạng thái ghi</div>
+          <div class="val" id="rStatus" style="font-size:13px;">Chưa bắt đầu</div>
+        </div>
+        <div class="readout">
+          <div class="lbl">Chu kỳ đo được T</div>
+          <div class="val" id="rT">—<span class="unit">s</span></div>
+        </div>
+        <div class="readout">
+          <div class="lbl">Tần số f</div>
+          <div class="val" id="rF">—<span class="unit">Hz</span></div>
+        </div>
+        <div class="readout">
+          <div class="lbl">k đo được (từ T)</div>
+          <div class="val amber" id="rK">—<span class="unit">N/m</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <span class="lbl">CẤU HÌNH LÒ XO</span>
+      <div class="spring-buttons" id="springButtons"></div>
+    </div>
+    <div class="control-group">
+      <span class="lbl">KHỐI LƯỢNG TREO (m)</span>
+      <div class="slider-row">
+        <input type="range" id="massSlider" min="50" max="500" step="10" value="150">
+        <div class="num" id="massVal">150 g</div>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="lbl">BIÊN ĐỘ KÉO BAN ĐẦU</span>
+      <div class="slider-row">
+        <input type="range" id="ampSlider" min="1" max="6" step="0.5" value="3">
+        <div class="num" id="ampVal">3.0 cm</div>
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="action-btn primary" id="btnPull">Kéo &amp; thả</button>
+      <button class="action-btn" id="btnStop">Dừng</button>
+      <button class="action-btn" id="btnReset">Xoá màn hình</button>
+    </div>
+  </div>
+
+  <div class="compare">
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:12px;color:var(--text-dim);margin:0 0 10px;">BẢNG SO SÁNH k_tính (lý thuyết ghép) vs k_đo (từ dao động) — như Bảng 3 trong tài liệu</h2>
+    <table>
+      <thead>
+        <tr><th>Cấu hình</th><th style="text-align:right">k lý thuyết [N/m]</th><th style="text-align:right">k đo trong 10s đầu [N/m]</th><th style="text-align:right">Sai khác</th></tr>
+      </thead>
+      <tbody id="compareBody"></tbody>
+    </table>
+  </div>
+
+  <footer>Mô phỏng minh hoạ — dựa trên tài liệu thí nghiệm PHYWE P2132667. Số liệu k đo có nhiễu cảm biến nhỏ để mô phỏng sai số thực tế.</footer>
+</div>
+
+<script>
+// ---------- physics config ----------
+const springs = {
+  k1: { label:'Lò xo 1', k:3,  desc:'k = 3 N/m' },
+  k2: { label:'Lò xo 2', k:3,  desc:'k = 3 N/m' },
+  k3: { label:'Lò xo 3', k:20, desc:'k = 20 N/m' },
+  series12:   { label:'1+2 nối tiếp',  k: 1/(1/3+1/3),  desc:'nối tiếp' },
+  series13:   { label:'1+3 nối tiếp',  k: 1/(1/3+1/20), desc:'nối tiếp' },
+  parallel12: { label:'1+2 song song', k: 3+3,          desc:'song song' },
+  parallel13: { label:'1+3 song song', k: 3+20,         desc:'song song' },
+};
+const order = ['k1','k2','k3','series12','series13','parallel12','parallel13'];
+let liveMeasured = {};   // configKey -> {k, T} — latest live reading, keeps updating for the whole run
+let stableMeasured = {}; // configKey -> {k, T} — reading frozen from inside the 0–10 s measurement window (used in the comparison table)
+
+const MAX_TIME = 20;        // s — total length of one recording, like ending the sensor after a fixed time
+const STABLE_WINDOW = 10;   // s — real experiment only evaluates the first ~10 s, while the oscillation is still close to ideal
+
+let state = {
+  configKey: 'k1',
+  m: 0.150,     // kg
+  amp: 0.03,    // m (visual/physical amplitude)
+  running: false,
+  t: 0,
+  y: 0.03,      // current displacement from equilibrium (m), + = stretched further
+  v: 0,
+  zetaStable:   0.012, // damping ratio during the 0–10 s measurement window — kept small so T (and k) stay close to the ideal value
+  zetaUnstable: 0.075, // damping ratio after 10 s — friction effects accumulate and the naive T→k formula starts to drift, same as real springs
+};
+
+function currentK(){ return springs[state.configKey].k; }
+
+// ---------- build spring buttons ----------
+const springButtonsEl = document.getElementById('springButtons');
+order.forEach(key=>{
+  const btn = document.createElement('button');
+  btn.className = 'spring-btn' + (key===state.configKey ? ' active' : '');
+  btn.textContent = springs[key].label + '  ·  k≈' + round1(springs[key].k) + ' N/m';
+  btn.dataset.key = key;
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.spring-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.configKey = key;
+    buildRig(state.configKey);
+    resetOscillation(false);
+  });
+  springButtonsEl.appendChild(btn);
+});
+
+// ---------- sliders ----------
+const massSlider = document.getElementById('massSlider');
+const massVal = document.getElementById('massVal');
+massSlider.addEventListener('input', ()=>{
+  state.m = massSlider.value/1000;
+  massVal.textContent = massSlider.value + ' g';
+});
+
+const ampSlider = document.getElementById('ampSlider');
+const ampVal = document.getElementById('ampVal');
+ampSlider.addEventListener('input', ()=>{
+  ampVal.textContent = parseFloat(ampSlider.value).toFixed(1) + ' cm';
+});
+
+// ---------- action buttons ----------
+document.getElementById('btnPull').addEventListener('click', ()=>{
+  state.amp = ampSlider.value/100;
+  state.y = state.amp;
+  state.v = 0;
+  state.t = 0;
+  peakTimes = [];
+  scopeHistory = [];
+  // fix the vertical scale of the scope to the initial force amplitude,
+  // so the trace visibly shrinks as the oscillation damps out, instead of
+  // being re-normalized to fit every frame
+  scopeScaleMax = Math.max(0.4, currentK()*state.amp*1.25);
+  state.running = true;
+});
+document.getElementById('btnStop').addEventListener('click', ()=>{
+  state.running = false;
+});
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  resetOscillation(true);
+});
+
+function resetOscillation(clearHistory){
+  state.running = false;
+  state.t = 0;
+  state.y = ampSlider.value/100;
+  state.v = 0;
+  peakTimes = [];
+  scopeHistory = [];
+  document.getElementById('rT').innerHTML = '—<span class="unit">s</span>';
+  document.getElementById('rF').innerHTML = '—<span class="unit">Hz</span>';
+  document.getElementById('rK').innerHTML = '—<span class="unit">N/m</span>';
+  updateStatus();
+}
+
+// ---------- SVG rig ----------
+const svg = document.getElementById('rigSvg');
+svg.setAttribute('viewBox', '0 0 420 360');
+
+const springStyle = {
+  k1: { color:'#c7cbc2', width:3,   coils:11, coilW:14, name:'Lò xo 1' },
+  k2: { color:'#9db8cf', width:3,   coils:11, coilW:14, name:'Lò xo 2' },
+  k3: { color:'#7c8479', width:5.5, coils:7,  coilW:17, name:'Lò xo 3' },
+};
+
+function modeFor(key){
+  if(key==='k1'||key==='k2'||key==='k3') return 'single';
+  if(key==='series12'||key==='series13') return 'series';
+  return 'parallel';
+}
+function partsFor(key){
+  // returns [springKeyTop/left, springKeyBottom/right]
+  if(key==='series12') return ['k1','k2'];
+  if(key==='series13') return ['k1','k3'];
+  if(key==='parallel12') return ['k1','k2'];
+  if(key==='parallel13') return ['k1','k3'];
+  return [key];
+}
+
+const anchorY = 22;
+const baseHalf = 66;   // px half-length per spring segment at rest (single spring uses full length)
+const pxPerMeter = 900;
+const centerX = 210;
+
+let rigRefs = { mode:null, springs:[], mass:null, massText:null, eqLine:null };
+
+function svgEl(tag, attrs){
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for(const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function coilPath(x0, y0, len, coils, coilW, dirSign){
+  let d = `M ${x0} ${y0}`;
+  const seg = len/(coils*2);
+  let y = y0;
+  d += ` L ${x0} ${y0+seg*0.5}`;
+  y = y0+seg*0.5;
+  let dir = dirSign;
+  for(let i=0;i<coils*2;i++){
+    y += seg;
+    d += ` L ${x0+dir*coilW} ${y}`;
+    dir *= -1;
+  }
+  d += ` L ${x0} ${y0+len}`;
+  return d;
+}
+
+function buildRig(configKey){
+  const mode = modeFor(configKey);
+  const parts = partsFor(configKey);
+  rigRefs = { mode, springs:[], mass:null, massText:null, eqLine:null };
+
+  // clear
+  svg.innerHTML = `
+    <rect x="26" y="18" width="8" height="326" fill="#7d746a"/>
+    <rect x="18" y="12" width="0" height="10" rx="2" fill="#8a8078" id="topBar"/>
+    <rect x="15" y="330" width="390" height="10" rx="2" fill="#6b625a"/>
+    <rect x="0" y="335" width="420" height="8" fill="#4a453d"/>
+    <defs>
+      <linearGradient id="massGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#e2a63d"/>
+        <stop offset="100%" stop-color="#a97627"/>
+      </linearGradient>
+    </defs>
+  `;
+  const dyn = svgEl('g', {id:'dynamicRig'});
+  svg.appendChild(dyn);
+
+  if(mode==='single'){
+    const s = springStyle[parts[0]];
+    svg.querySelector('#topBar').setAttribute('x', 15);
+    svg.querySelector('#topBar').setAttribute('width', 40);
+    const label = svgEl('text', {x:centerX+26, y:anchorY+14, 'font-family':'IBM Plex Mono', 'font-size':10, fill:'#9a9c8f'});
+    label.textContent = `${springs[parts[0]].label} · k≈${round1(springs[parts[0]].k)} N/m`;
+    dyn.appendChild(label);
+    const path = svgEl('path', {fill:'none', stroke:s.color, 'stroke-width':s.width, 'stroke-linejoin':'round'});
+    dyn.appendChild(path);
+    const eq = svgEl('line', {x1:60, x2:400, stroke:'#5a6b58', 'stroke-width':1, 'stroke-dasharray':'4 4'});
+    dyn.appendChild(eq);
+    const mass = buildMassGroup();
+    dyn.appendChild(mass.group);
+    rigRefs.springs.push({el:path, x:centerX, style:s});
+    rigRefs.mass = mass;
+    rigRefs.eqLine = eq;
+
+  } else if(mode==='series'){
+    const sTop = springStyle[parts[0]];
+    const sBot = springStyle[parts[1]];
+    const pathTop = svgEl('path', {fill:'none', stroke:sTop.color, 'stroke-width':sTop.width, 'stroke-linejoin':'round'});
+    const pathBot = svgEl('path', {fill:'none', stroke:sBot.color, 'stroke-width':sBot.width, 'stroke-linejoin':'round'});
+    const link = svgEl('circle', {r:4.5, fill:'#e2a63d', stroke:'#8a6236', 'stroke-width':1});
+    const labelTop = svgEl('text', {x:centerX+26, y:0, 'font-family':'IBM Plex Mono', 'font-size':10, fill:'#9a9c8f'});
+    labelTop.textContent = springs[parts[0]].label;
+    const labelBot = svgEl('text', {x:centerX+26, y:0, 'font-family':'IBM Plex Mono', 'font-size':10, fill:'#9a9c8f'});
+    labelBot.textContent = springs[parts[1]].label;
+    const eq = svgEl('line', {x1:60, x2:400, stroke:'#5a6b58', 'stroke-width':1, 'stroke-dasharray':'4 4'});
+    dyn.appendChild(pathTop); dyn.appendChild(pathBot); dyn.appendChild(link);
+    dyn.appendChild(labelTop); dyn.appendChild(labelBot); dyn.appendChild(eq);
+    const mass = buildMassGroup();
+    dyn.appendChild(mass.group);
+    rigRefs.springs.push({el:pathTop, x:centerX, style:sTop, labelEl:labelTop});
+    rigRefs.springs.push({el:pathBot, x:centerX, style:sBot, labelEl:labelBot});
+    rigRefs.link = link;
+    rigRefs.mass = mass;
+    rigRefs.eqLine = eq;
+
+  } else { // parallel
+    const sL = springStyle[parts[0]];
+    const sR = springStyle[parts[1]];
+    const xL = centerX-48, xR = centerX+48;
+    const pathL = svgEl('path', {fill:'none', stroke:sL.color, 'stroke-width':sL.width, 'stroke-linejoin':'round'});
+    const pathR = svgEl('path', {fill:'none', stroke:sR.color, 'stroke-width':sR.width, 'stroke-linejoin':'round'});
+    const yokeTop = svgEl('line', {x1:xL, x2:xR, stroke:'#8a8078', 'stroke-width':4});
+    const yokeBot = svgEl('line', {x1:xL, x2:xR, stroke:'#8a8078', 'stroke-width':4});
+    const stub = svgEl('line', {x1:centerX, x2:centerX, stroke:'#8a8078', 'stroke-width':4});
+    const labelL = svgEl('text', {x:xL-8, y:anchorY+14, 'text-anchor':'end', 'font-family':'IBM Plex Mono', 'font-size':10, fill:'#9a9c8f'});
+    labelL.textContent = springs[parts[0]].label;
+    const labelR = svgEl('text', {x:xR+8, y:anchorY+14, 'font-family':'IBM Plex Mono', 'font-size':10, fill:'#9a9c8f'});
+    labelR.textContent = springs[parts[1]].label;
+    const eq = svgEl('line', {x1:60, x2:400, stroke:'#5a6b58', 'stroke-width':1, 'stroke-dasharray':'4 4'});
+    svg.querySelector('#topBar').setAttribute('x', xL-14);
+    svg.querySelector('#topBar').setAttribute('width', (xR-xL)+28);
+    dyn.appendChild(yokeTop); dyn.appendChild(pathL); dyn.appendChild(pathR);
+    dyn.appendChild(labelL); dyn.appendChild(labelR); dyn.appendChild(eq);
+    dyn.appendChild(yokeBot); dyn.appendChild(stub);
+    const mass = buildMassGroup();
+    dyn.appendChild(mass.group);
+    rigRefs.springs.push({el:pathL, x:xL, style:sL});
+    rigRefs.springs.push({el:pathR, x:xR, style:sR});
+    rigRefs.yokeTop = yokeTop; rigRefs.yokeBot = yokeBot; rigRefs.stub = stub;
+    rigRefs.xL = xL; rigRefs.xR = xR;
+    rigRefs.mass = mass;
+    rigRefs.eqLine = eq;
+  }
+}
+
+function buildMassGroup(){
+  const group = svgEl('g', {});
+  const rect = svgEl('rect', {x:centerX-30, width:60, height:40, rx:4, fill:'url(#massGrad)', stroke:'#4a3a20', 'stroke-width':1.5});
+  const text = svgEl('text', {x:centerX, 'text-anchor':'middle', 'font-family':'IBM Plex Mono', 'font-size':11, fill:'#241a0c', 'font-weight':600});
+  group.appendChild(rect); group.appendChild(text);
+  return { group, rect, text };
+}
+
+function updateRig(){
+  const yMeters = state.y;
+  const extra = yMeters*pxPerMeter;
+
+  if(rigRefs.mode==='single'){
+    const s = rigRefs.springs[0];
+    const totalLen = baseHalf*2 + extra;
+    const d = coilPath(s.x, anchorY, totalLen, s.style.coils, s.style.coilW, 1);
+    s.el.setAttribute('d', d);
+    const bottomY = anchorY + totalLen;
+    placeMass(bottomY);
+    rigRefs.eqLine.setAttribute('y1', anchorY+baseHalf*2+40);
+    rigRefs.eqLine.setAttribute('y2', anchorY+baseHalf*2+40);
+
+  } else if(rigRefs.mode==='series'){
+    const segLen = baseHalf + extra/2;
+    const top = rigRefs.springs[0], bot = rigRefs.springs[1];
+    const dTop = coilPath(top.x, anchorY, segLen, top.style.coils, top.style.coilW, 1);
+    top.el.setAttribute('d', dTop);
+    const midY = anchorY + segLen;
+    const dBot = coilPath(bot.x, midY, segLen, bot.style.coils, bot.style.coilW, 1);
+    bot.el.setAttribute('d', dBot);
+    rigRefs.link.setAttribute('cx', centerX);
+    rigRefs.link.setAttribute('cy', midY);
+    top.labelEl.setAttribute('y', anchorY+14);
+    bot.labelEl.setAttribute('y', midY+16);
+    const bottomY = midY + segLen;
+    placeMass(bottomY);
+    rigRefs.eqLine.setAttribute('y1', anchorY+segLen*2+40);
+    rigRefs.eqLine.setAttribute('y2', anchorY+segLen*2+40);
+
+  } else { // parallel
+    const totalLen = baseHalf*2 + extra;
+    const L = rigRefs.springs[0], R = rigRefs.springs[1];
+    const dL = coilPath(L.x, anchorY, totalLen, L.style.coils, L.style.coilW, 1);
+    const dR = coilPath(R.x, anchorY, totalLen, R.style.coils, R.style.coilW, -1);
+    L.el.setAttribute('d', dL);
+    R.el.setAttribute('d', dR);
+    const bottomY = anchorY + totalLen;
+    rigRefs.yokeTop.setAttribute('y1', anchorY); rigRefs.yokeTop.setAttribute('y2', anchorY);
+    rigRefs.yokeBot.setAttribute('y1', bottomY); rigRefs.yokeBot.setAttribute('y2', bottomY);
+    rigRefs.stub.setAttribute('y1', bottomY); rigRefs.stub.setAttribute('y2', bottomY+18);
+    placeMass(bottomY+18);
+    rigRefs.eqLine.setAttribute('y1', anchorY+baseHalf*2+58);
+    rigRefs.eqLine.setAttribute('y2', anchorY+baseHalf*2+58);
+  }
+}
+
+function placeMass(topY){
+  rigRefs.mass.rect.setAttribute('y', topY);
+  rigRefs.mass.text.setAttribute('y', topY+24);
+  rigRefs.mass.text.textContent = Math.round(state.m*1000)+' g';
+}
+
+buildRig(state.configKey);
+updateRig();
+
+// ---------- oscilloscope canvas ----------
+const canvas = document.getElementById('scopeCanvas');
+const ctx = canvas.getContext('2d');
+function resizeCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * devicePixelRatio;
+  canvas.height = rect.height * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+let scopeHistory = []; // {t, F}
+let peakTimes = [];
+let scopeScaleMax = 0.6; // fixed vertical scale set at release time (see btnPull), not recomputed per frame
+
+function pushScope(t, F){
+  scopeHistory.push({t, F});
+}
+
+function drawScope(){
+  const w = canvas.getBoundingClientRect().width;
+  const h = canvas.getBoundingClientRect().height;
+  ctx.clearRect(0,0,w,h);
+
+  const midY = h/2;
+  const scaleY = (h*0.42)/scopeScaleMax;
+  const xForT = t => (t/MAX_TIME)*w;
+
+  // shade the region past the 10 s stable-measurement window
+  const xDivider = xForT(STABLE_WINDOW);
+  ctx.fillStyle = 'rgba(226,166,61,0.05)';
+  ctx.fillRect(xDivider, 0, w-xDivider, h);
+
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(226,166,61,0.55)';
+  ctx.setLineDash([4,4]);
+  ctx.lineWidth = 1;
+  ctx.moveTo(xDivider, 0);
+  ctx.lineTo(xDivider, h);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(226,166,61,0.7)';
+  ctx.font = '9px IBM Plex Mono';
+  ctx.fillText('10 s — hết vùng đo chuẩn', xDivider+4, 11);
+
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(123,224,138,0.35)';
+  ctx.lineWidth = 1;
+  ctx.moveTo(0, midY);
+  ctx.lineTo(w, midY);
+  ctx.stroke();
+
+  if(scopeHistory.length < 2) return;
+
+  ctx.beginPath();
+  ctx.strokeStyle = '#7be08a';
+  ctx.lineWidth = 1.8;
+  ctx.shadowColor = '#7be08a';
+  ctx.shadowBlur = 4;
+  scopeHistory.forEach((p,i)=>{
+    const x = xForT(p.t);
+    const y = midY - p.F*scaleY;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function updateStatus(){
+  const el = document.getElementById('rStatus');
+  if(!el) return;
+  if(!state.running && state.t===0){
+    el.textContent = 'Chưa bắt đầu';
+    el.style.color = 'var(--text-dim)';
+  } else if(!state.running && state.t >= MAX_TIME){
+    el.textContent = 'Đã ghi đủ 20 s';
+    el.style.color = 'var(--text-dim)';
+  } else if(!state.running){
+    el.textContent = 'Đã dừng · ' + state.t.toFixed(1) + ' s';
+    el.style.color = 'var(--text-dim)';
+  } else if(state.t < STABLE_WINDOW){
+    el.textContent = 'Đang trong vùng đo chuẩn · ' + state.t.toFixed(1) + ' s';
+    el.style.color = 'var(--phosphor)';
+  } else {
+    el.textContent = 'Ngoài vùng đo chuẩn · ' + state.t.toFixed(1) + ' s';
+    el.style.color = 'var(--amber)';
+  }
+}
+
+// ---------- simulation step ----------
+let lastFrame = null;
+function frame(ts){
+  if(lastFrame===null) lastFrame = ts;
+  let dt = (ts-lastFrame)/1000;
+  dt = Math.min(dt, 0.033);
+  lastFrame = ts;
+
+  if(state.running){
+    if(state.t >= MAX_TIME){
+      state.running = false;
+    } else {
+      const k = currentK();
+      const m = state.m;
+      const omega2 = k/m;
+      const omega = Math.sqrt(omega2);
+      const inStableWindow = state.t < STABLE_WINDOW;
+      const zeta = inStableWindow ? state.zetaStable : state.zetaUnstable;
+      const gamma = 2*zeta*omega; // damping scaled to this system's own frequency
+      // simple harmonic + damping, semi-implicit Euler
+      const a = -omega2*state.y - gamma*state.v;
+      state.v += a*dt;
+      state.y += state.v*dt;
+      state.t += dt;
+
+      // detect peak (local max of |y| at turning point where v changes + to -)
+      if(prevV !== null && prevV > 0 && state.v <= 0 && state.y > 0){
+        peakTimes.push(state.t);
+        if(peakTimes.length >= 2){
+          const intervals = [];
+          for(let i=1;i<peakTimes.length;i++) intervals.push(peakTimes[i]-peakTimes[i-1]);
+          const recent = intervals.slice(-5);
+          const Tavg = recent.reduce((a,b)=>a+b,0)/recent.length;
+          // small sensor-like noise
+          const noise = 1 + (Math.random()-0.5)*0.01;
+          const Tmeas = Tavg*noise;
+          const kMeas = m*Math.pow(2*Math.PI/Tmeas, 2);
+          document.getElementById('rT').innerHTML = Tmeas.toFixed(3)+'<span class="unit">s</span>';
+          document.getElementById('rF').innerHTML = (1/Tmeas).toFixed(2)+'<span class="unit">Hz</span>';
+          document.getElementById('rK').innerHTML = kMeas.toFixed(2)+'<span class="unit">N/m</span>';
+          liveMeasured[state.configKey] = { k:kMeas, T:Tmeas };
+          if(state.t <= STABLE_WINDOW){
+            // this is the value the real procedure would record: measured inside the first 10 s
+            stableMeasured[state.configKey] = { k:kMeas, T:Tmeas };
+          }
+          renderCompareTable();
+        }
+      }
+      prevV = state.v;
+
+      const F = k*state.y; // relative force reading (tared)
+      pushScope(state.t, F);
+    }
+  }
+  updateStatus();
+
+  updateRig();
+  drawScope();
+  requestAnimationFrame(frame);
+}
+let prevV = null;
+requestAnimationFrame(frame);
+
+// ---------- compare table ----------
+function round1(x){ return Math.round(x*10)/10; }
+function round2(x){ return Math.round(x*100)/100; }
+
+function renderCompareTable(){
+  const body = document.getElementById('compareBody');
+  body.innerHTML = '';
+  order.forEach(key=>{
+    const s = springs[key];
+    const measured = stableMeasured[key];
+    const tr = document.createElement('tr');
+    if(key===state.configKey) tr.className='current';
+    const kCalc = s.k;
+    let measuredCell = '—';
+    let diffCell = '—';
+    let diffClass = '';
+    if(measured){
+      measuredCell = round2(measured.k);
+      const diffPct = Math.abs(measured.k-kCalc)/kCalc*100;
+      diffCell = diffPct.toFixed(1)+' %';
+      diffClass = diffPct < 8 ? 'match' : 'mismatch';
+    }
+    tr.innerHTML = `
+      <td>${s.label}</td>
+      <td class="num">${round2(kCalc)}</td>
+      <td class="num">${measuredCell}</td>
+      <td class="num ${diffClass}">${diffCell}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+renderCompareTable();
+
+// init
+resetOscillation(true);
+state.m = massSlider.value/1000;
+</script>
+</body>
+</html>
