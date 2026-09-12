@@ -273,7 +273,8 @@
         <svg id="rigSvg" viewBox="0 0 360 360" width="100%" height="100%"></svg>
       </div>
       <div class="note" id="physNote">
-        Mỗi lần ghi kéo dài 20 s. Trong 10 s đầu (vùng sáng), dao động được coi là gần lý tưởng nên T đo được rất ổn định và k tính ra khớp sát với lý thuyết — đây là giá trị được ghi vào bảng so sánh bên dưới. Sau 10 s (vùng tô nhạt màu vàng), ma sát nội tại tích lũy khiến biên độ giảm nhanh hơn và công thức T→k bắt đầu lệch — số liệu ở ô "k đo được" phía trên vẫn cập nhật liên tục để bạn thấy rõ độ lệch này.
+        Chu kỳ T chỉ phụ thuộc vào độ cứng k và khối lượng m — không phụ thuộc biên độ kéo ban đầu. Thử kéo mạnh hơn hoặc nhẹ hơn rồi so sánh T đo được.<br>
+        Chuyển động dùng <b>nghiệm giải tích chính xác</b> của mẍ+bẋ+kx=0 (không tích phân số Euler) với một hệ số tắt dần γ duy nhất, không đổi theo thời gian — biên độ tắt dần đều theo hàm mũ suốt quá trình. k "đo được" được suy độc lập từ chu kỳ dao động thật (có dung sai chế tạo lò xo), không phải con số gán sẵn để luôn khớp.
       </div>
     </div>
 
@@ -283,11 +284,7 @@
         <canvas id="scopeCanvas"></canvas>
         <div class="grid-overlay"></div>
       </div>
-      <div class="readout-row" style="grid-template-columns:repeat(4, 1fr);">
-        <div class="readout">
-          <div class="lbl">Trạng thái ghi</div>
-          <div class="val" id="rStatus" style="font-size:13px;">Chưa bắt đầu</div>
-        </div>
+      <div class="readout-row">
         <div class="readout">
           <div class="lbl">Chu kỳ đo được T</div>
           <div class="val" id="rT">—<span class="unit">s</span></div>
@@ -300,6 +297,9 @@
           <div class="lbl">k đo được (từ T)</div>
           <div class="val amber" id="rK">—<span class="unit">N/m</span></div>
         </div>
+      </div>
+      <div class="note" id="signalStatus" style="display:none;border-left-color:var(--danger);color:var(--danger);">
+        Tín hiệu đã tắt dần xuống gần mức nhiễu nền của cảm biến lực (SNR &lt; ~2) — dò đỉnh không còn tin cậy, ngừng cập nhật phép đo. Đây là giới hạn vật lý thật của cảm biến, không phải do hết "vùng chuẩn".
       </div>
     </div>
   </div>
@@ -323,6 +323,13 @@
         <div class="num" id="ampVal">3.0 cm</div>
       </div>
     </div>
+    <div class="control-group">
+      <span class="lbl">CÔNG THỨC TÍNH k TỪ CHU KỲ ĐO</span>
+      <label style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text-dim);cursor:pointer;">
+        <input type="checkbox" id="massCorrectionToggle" style="accent-color:var(--amber);">
+        Hiệu chỉnh khối lượng lò xo: T = 2π√((m + m_lòxo/3)/k) — tắt = công thức đơn giản T = 2π√(m/k) mà học sinh thường dùng
+      </label>
+    </div>
     <div class="action-row">
       <button class="action-btn primary" id="btnPull">Kéo &amp; thả</button>
       <button class="action-btn" id="btnStop">Dừng</button>
@@ -334,32 +341,59 @@
     <h2 style="font-family:'Space Grotesk',sans-serif;font-size:12px;color:var(--text-dim);margin:0 0 10px;">BẢNG SO SÁNH k_tính (lý thuyết ghép) vs k_đo (từ dao động) — như Bảng 3 trong tài liệu</h2>
     <table>
       <thead>
-        <tr><th>Cấu hình</th><th style="text-align:right">k lý thuyết [N/m]</th><th style="text-align:right">k đo trong 10s đầu [N/m]</th><th style="text-align:right">Sai khác</th></tr>
+        <tr><th>Cấu hình</th><th style="text-align:right">k lý thuyết [N/m]</th><th style="text-align:right">k đo lần gần nhất [N/m]</th><th style="text-align:right">Sai khác</th></tr>
       </thead>
       <tbody id="compareBody"></tbody>
     </table>
   </div>
 
-  <footer>Mô phỏng minh hoạ — dựa trên tài liệu thí nghiệm PHYWE P2132667. Số liệu k đo có nhiễu cảm biến nhỏ để mô phỏng sai số thực tế.</footer>
+  <footer>Mô phỏng minh hoạ — dựa trên tài liệu thí nghiệm PHYWE P2132667. Mỗi lò xo có độ cứng vật lý thực lệch nhẹ (~1-2%) so với thông số danh nghĩa (dung sai chế tạo) và có khối lượng riêng ảnh hưởng đến T thật (m_lòxo/3) dù bật/tắt hiệu chỉnh khi tính k. Độ chính xác phép đo giảm dần khi biên độ tín hiệu tiến gần ngưỡng nhiễu cảm biến (SNR thấp), và dừng hẳn khi tín hiệu chìm trong nhiễu — không phải một mức nhiễu cố định nhân tạo.</footer>
 </div>
 
 <script>
 // ---------- physics config ----------
 const springs = {
-  k1: { label:'Lò xo 1', k:3,  desc:'k = 3 N/m' },
-  k2: { label:'Lò xo 2', k:3,  desc:'k = 3 N/m' },
-  k3: { label:'Lò xo 3', k:20, desc:'k = 20 N/m' },
+  k1: { label:'Lò xo 1', k:3,  desc:'k = 3 N/m', mSpring:0.013 },
+  k2: { label:'Lò xo 2', k:3,  desc:'k = 3 N/m', mSpring:0.013 },
+  k3: { label:'Lò xo 3', k:20, desc:'k = 20 N/m', mSpring:0.025 },
   series12:   { label:'1+2 nối tiếp',  k: 1/(1/3+1/3),  desc:'nối tiếp' },
   series13:   { label:'1+3 nối tiếp',  k: 1/(1/3+1/20), desc:'nối tiếp' },
   parallel12: { label:'1+2 song song', k: 3+3,          desc:'song song' },
   parallel13: { label:'1+3 song song', k: 3+20,         desc:'song song' },
 };
 const order = ['k1','k2','k3','series12','series13','parallel12','parallel13'];
-let liveMeasured = {};   // configKey -> {k, T} — latest live reading, keeps updating for the whole run
-let stableMeasured = {}; // configKey -> {k, T} — reading frozen from inside the 0–10 s measurement window (used in the comparison table)
+let lastMeasured = {}; // configKey -> {k, T}
 
-const MAX_TIME = 20;        // s — total length of one recording, like ending the sensor after a fixed time
-const STABLE_WINDOW = 10;   // s — real experiment only evaluates the first ~10 s, while the oscillation is still close to ideal
+// Khối lượng lò xo hiệu dụng của cả cụm (dùng cho hiệu chỉnh Rayleigh: m_eff = m + m_lòxo/3).
+// Với cấu hình ghép, lấy gần đúng bằng tổng khối lượng các lò xo thành phần.
+function effectiveSpringMass(key){
+  if(key==='k1'||key==='k2'||key==='k3') return springs[key].mSpring;
+  const [a,b] = partsFor(key);
+  return springs[a].mSpring + springs[b].mSpring;
+}
+
+// Ngưỡng nhiễu cảm biến lực thực tế (N). Khi biên độ tín hiệu tụt xuống gần
+// mức này, tỉ số tín hiệu/nhiễu (SNR) giảm và phép đo chu kỳ mất dần độ tin cậy.
+const sensorNoiseFloor = 0.025; // N
+const snrCutoff = 2.2;          // dưới ngưỡng này coi như "chìm trong nhiễu", ngừng ghi nhận đỉnh
+
+// ---------- ground truth vật lý (độc lập với thông số danh nghĩa) ----------
+// Lò xo thật ngoài đời luôn có độ cứng thực tế lệch nhẹ so với thông số ghi
+// trên nhãn (dung sai chế tạo, thường 1-3%). Trước đây hệ dao động được lập
+// trình chạy đúng bằng số k lý thuyết rồi "đo ngược" lại chính số đó — tức
+// so sánh một con số với chính nó, nên bảng luôn khớp gần tuyệt đối. Ở đây
+// hệ dao động được điều khiển bởi k THẬT (kTrue, cố định, không đổi giữa
+// các lần chạy) — độc lập với k lý thuyết dùng để dự đoán và hiển thị nhãn.
+const trueK = {
+  k1: springs.k1.k * 0.982,  // lệch -1.8% so với danh nghĩa
+  k2: springs.k2.k * 1.014,  // lệch +1.4% so với danh nghĩa
+  k3: springs.k3.k * 0.991,  // lệch -0.9% so với danh nghĩa
+};
+function truePhysicalK(key){
+  if(key==='k1'||key==='k2'||key==='k3') return trueK[key];
+  const [a,b] = partsFor(key);
+  return modeFor(key)==='series' ? 1/(1/trueK[a]+1/trueK[b]) : trueK[a]+trueK[b];
+}
 
 let state = {
   configKey: 'k1',
@@ -369,11 +403,10 @@ let state = {
   t: 0,
   y: 0.03,      // current displacement from equilibrium (m), + = stretched further
   v: 0,
-  zetaStable:   0.012, // damping ratio during the 0–10 s measurement window — kept small so T (and k) stay close to the ideal value
-  zetaUnstable: 0.075, // damping ratio after 10 s — friction effects accumulate and the naive T→k formula starts to drift, same as real springs
+  gamma: 0.03,  // light damping
 };
 
-function currentK(){ return springs[state.configKey].k; }
+function currentK(){ return truePhysicalK(state.configKey); } // hệ dao động thật, KHÔNG dùng k lý thuyết
 
 // ---------- build spring buttons ----------
 const springButtonsEl = document.getElementById('springButtons');
@@ -406,18 +439,29 @@ ampSlider.addEventListener('input', ()=>{
   ampVal.textContent = parseFloat(ampSlider.value).toFixed(1) + ' cm';
 });
 
+const massCorrectionToggle = document.getElementById('massCorrectionToggle');
+
 // ---------- action buttons ----------
+let motion = null; // tham số nghiệm giải tích chính xác cho lần thả hiện tại
+let signalWeak = false; // true khi biên độ tín hiệu đã chìm dưới ngưỡng nhiễu cảm biến
 document.getElementById('btnPull').addEventListener('click', ()=>{
   state.amp = ampSlider.value/100;
   state.y = state.amp;
   state.v = 0;
   state.t = 0;
   peakTimes = [];
-  scopeHistory = [];
-  // fix the vertical scale of the scope to the initial force amplitude,
-  // so the trace visibly shrinks as the oscillation damps out, instead of
-  // being re-normalized to fit every frame
-  scopeScaleMax = Math.max(0.4, currentK()*state.amp*1.25);
+  signalWeak = false;
+
+  // Chuyển động THẬT của hệ luôn tuân theo vật lý đầy đủ: khối lượng quả nặng
+  // CỘNG khối lượng lò xo phân bố (hiệu chỉnh Rayleigh m_lòxo/3) và k vật lý
+  // thật của lò xo (có dung sai chế tạo) — bất kể học sinh tính toán thế nào.
+  const kTruePhys = currentK();
+  const mEffTrue = state.m + effectiveSpringMass(state.configKey)/3;
+  const omega0 = Math.sqrt(kTruePhys/mEffTrue);
+  const halfGamma = state.gamma/2;
+  const omegad = Math.sqrt(Math.max(omega0*omega0 - halfGamma*halfGamma, 1e-6));
+  motion = { y0: state.amp, omega0, halfGamma, omegad };
+
   state.running = true;
 });
 document.getElementById('btnStop').addEventListener('click', ()=>{
@@ -434,10 +478,12 @@ function resetOscillation(clearHistory){
   state.v = 0;
   peakTimes = [];
   scopeHistory = [];
+  signalWeak = false;
+  const sig = document.getElementById('signalStatus');
+  if(sig) sig.style.display = 'none';
   document.getElementById('rT').innerHTML = '—<span class="unit">s</span>';
   document.getElementById('rF').innerHTML = '—<span class="unit">Hz</span>';
   document.getElementById('rK').innerHTML = '—<span class="unit">N/m</span>';
-  updateStatus();
 }
 
 // ---------- SVG rig ----------
@@ -661,37 +707,27 @@ window.addEventListener('resize', resizeCanvas);
 
 let scopeHistory = []; // {t, F}
 let peakTimes = [];
-let scopeScaleMax = 0.6; // fixed vertical scale set at release time (see btnPull), not recomputed per frame
+const windowSeconds = 8;
 
 function pushScope(t, F){
   scopeHistory.push({t, F});
+  while(scopeHistory.length && t - scopeHistory[0].t > windowSeconds){
+    scopeHistory.shift();
+  }
 }
 
 function drawScope(){
   const w = canvas.getBoundingClientRect().width;
   const h = canvas.getBoundingClientRect().height;
   ctx.clearRect(0,0,w,h);
+  if(scopeHistory.length < 2) return;
 
+  const tNow = scopeHistory[scopeHistory.length-1].t;
+  const tMin = Math.max(0, tNow - windowSeconds); // đầy cửa sổ mới bắt đầu cuộn; trước đó luôn khởi đi từ mép trái (t=0)
+
+  const maxAbsF = Math.max(0.6, ...scopeHistory.map(p=>Math.abs(p.F)));
   const midY = h/2;
-  const scaleY = (h*0.42)/scopeScaleMax;
-  const xForT = t => (t/MAX_TIME)*w;
-
-  // shade the region past the 10 s stable-measurement window
-  const xDivider = xForT(STABLE_WINDOW);
-  ctx.fillStyle = 'rgba(226,166,61,0.05)';
-  ctx.fillRect(xDivider, 0, w-xDivider, h);
-
-  ctx.beginPath();
-  ctx.strokeStyle = 'rgba(226,166,61,0.55)';
-  ctx.setLineDash([4,4]);
-  ctx.lineWidth = 1;
-  ctx.moveTo(xDivider, 0);
-  ctx.lineTo(xDivider, h);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(226,166,61,0.7)';
-  ctx.font = '9px IBM Plex Mono';
-  ctx.fillText('10 s — hết vùng đo chuẩn', xDivider+4, 11);
+  const scaleY = (h*0.42)/maxAbsF;
 
   ctx.beginPath();
   ctx.strokeStyle = 'rgba(123,224,138,0.35)';
@@ -700,41 +736,18 @@ function drawScope(){
   ctx.lineTo(w, midY);
   ctx.stroke();
 
-  if(scopeHistory.length < 2) return;
-
   ctx.beginPath();
   ctx.strokeStyle = '#7be08a';
   ctx.lineWidth = 1.8;
   ctx.shadowColor = '#7be08a';
   ctx.shadowBlur = 4;
   scopeHistory.forEach((p,i)=>{
-    const x = xForT(p.t);
+    const x = ((p.t - tMin)/windowSeconds)*w;
     const y = midY - p.F*scaleY;
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   });
   ctx.stroke();
   ctx.shadowBlur = 0;
-}
-
-function updateStatus(){
-  const el = document.getElementById('rStatus');
-  if(!el) return;
-  if(!state.running && state.t===0){
-    el.textContent = 'Chưa bắt đầu';
-    el.style.color = 'var(--text-dim)';
-  } else if(!state.running && state.t >= MAX_TIME){
-    el.textContent = 'Đã ghi đủ 20 s';
-    el.style.color = 'var(--text-dim)';
-  } else if(!state.running){
-    el.textContent = 'Đã dừng · ' + state.t.toFixed(1) + ' s';
-    el.style.color = 'var(--text-dim)';
-  } else if(state.t < STABLE_WINDOW){
-    el.textContent = 'Đang trong vùng đo chuẩn · ' + state.t.toFixed(1) + ' s';
-    el.style.color = 'var(--phosphor)';
-  } else {
-    el.textContent = 'Ngoài vùng đo chuẩn · ' + state.t.toFixed(1) + ' s';
-    el.style.color = 'var(--amber)';
-  }
 }
 
 // ---------- simulation step ----------
@@ -745,53 +758,65 @@ function frame(ts){
   dt = Math.min(dt, 0.033);
   lastFrame = ts;
 
-  if(state.running){
-    if(state.t >= MAX_TIME){
-      state.running = false;
-    } else {
-      const k = currentK();
-      const m = state.m;
-      const omega2 = k/m;
-      const omega = Math.sqrt(omega2);
-      const inStableWindow = state.t < STABLE_WINDOW;
-      const zeta = inStableWindow ? state.zetaStable : state.zetaUnstable;
-      const gamma = 2*zeta*omega; // damping scaled to this system's own frequency
-      // simple harmonic + damping, semi-implicit Euler
-      const a = -omega2*state.y - gamma*state.v;
-      state.v += a*dt;
-      state.y += state.v*dt;
-      state.t += dt;
+  if(state.running && motion){
+    const k = currentK();
+    state.t += dt;
+    const t = state.t;
 
-      // detect peak (local max of |y| at turning point where v changes + to -)
-      if(prevV !== null && prevV > 0 && state.v <= 0 && state.y > 0){
-        peakTimes.push(state.t);
+    // Nghiệm GIẢI TÍCH CHÍNH XÁC của m_eff·ÿ + b·ẏ + k·y = 0 với y(0)=y0, v(0)=0
+    // — không dùng tích phân số Euler nên không có sai số tích lũy theo dt/khung hình.
+    // Một hệ số tắt dần γ (=state.gamma) duy nhất, không đổi theo thời gian.
+    const decay = Math.exp(-motion.halfGamma * t);
+    const cosT = Math.cos(motion.omegad * t);
+    const sinT = Math.sin(motion.omegad * t);
+    state.y = motion.y0 * decay * (cosT + (motion.halfGamma/motion.omegad) * sinT);
+    state.v = -motion.y0 * (motion.omega0*motion.omega0/motion.omegad) * decay * sinT;
+
+    // detect peak (local max of |y| at turning point where v changes + to -)
+    if(prevV !== null && prevV > 0 && state.v <= 0 && state.y > 0 && !signalWeak){
+      const forceAtPeak = Math.abs(k*state.y);
+      const snr = forceAtPeak/sensorNoiseFloor;
+
+      if(snr < snrCutoff){
+        // Biên độ đã tắt dần chìm xuống gần mức nhiễu nền của cảm biến lực:
+        // tỉ số tín hiệu/nhiễu quá thấp để dò đỉnh tin cậy — dừng đo, không
+        // phải vì hết "vùng chuẩn" tuỳ tiện mà vì vật lý của phép đo thật.
+        signalWeak = true;
+        const sig = document.getElementById('signalStatus');
+        if(sig) sig.style.display = 'block';
+      } else {
+        peakTimes.push(t);
         if(peakTimes.length >= 2){
           const intervals = [];
           for(let i=1;i<peakTimes.length;i++) intervals.push(peakTimes[i]-peakTimes[i-1]);
           const recent = intervals.slice(-5);
           const Tavg = recent.reduce((a,b)=>a+b,0)/recent.length;
-          // small sensor-like noise
-          const noise = 1 + (Math.random()-0.5)*0.01;
-          const Tmeas = Tavg*noise;
-          const kMeas = m*Math.pow(2*Math.PI/Tmeas, 2);
+          // Độ chính xác dò đỉnh suy giảm DẦN khi SNR giảm (tín hiệu chìm dần
+          // vào nhiễu), không phải một mức nhiễu cố định nhân tạo.
+          const noiseAmp = 0.01 + 0.3/snr;
+          const Tmeas = Tavg * (1 + (Math.random()-0.5)*2*noiseAmp);
+
+          const mBare = state.m;
+          const mCorrected = state.m + effectiveSpringMass(state.configKey)/3;
+          const mForCalc = massCorrectionToggle.checked ? mCorrected : mBare;
+          const kMeas = mForCalc*Math.pow(2*Math.PI/Tmeas, 2);
+
           document.getElementById('rT').innerHTML = Tmeas.toFixed(3)+'<span class="unit">s</span>';
           document.getElementById('rF').innerHTML = (1/Tmeas).toFixed(2)+'<span class="unit">Hz</span>';
           document.getElementById('rK').innerHTML = kMeas.toFixed(2)+'<span class="unit">N/m</span>';
-          liveMeasured[state.configKey] = { k:kMeas, T:Tmeas };
-          if(state.t <= STABLE_WINDOW){
-            // this is the value the real procedure would record: measured inside the first 10 s
-            stableMeasured[state.configKey] = { k:kMeas, T:Tmeas };
-          }
+          lastMeasured[state.configKey] = { k:kMeas, T:Tmeas };
           renderCompareTable();
         }
       }
-      prevV = state.v;
-
-      const F = k*state.y; // relative force reading (tared)
-      pushScope(state.t, F);
     }
+    prevV = state.v;
+
+    // Tín hiệu lực hiển thị trên máy hiện sóng CÓ nhiễu cảm biến cộng vào —
+    // để thấy rõ SNR giảm dần khi biên độ tắt dần, thay vì một đường sạch tuyệt đối.
+    const Ftrue = k*state.y;
+    const Fnoisy = Ftrue + (Math.random()-0.5)*2*sensorNoiseFloor;
+    pushScope(t, Fnoisy);
   }
-  updateStatus();
 
   updateRig();
   drawScope();
@@ -799,6 +824,7 @@ function frame(ts){
 }
 let prevV = null;
 requestAnimationFrame(frame);
+
 
 // ---------- compare table ----------
 function round1(x){ return Math.round(x*10)/10; }
@@ -809,7 +835,7 @@ function renderCompareTable(){
   body.innerHTML = '';
   order.forEach(key=>{
     const s = springs[key];
-    const measured = stableMeasured[key];
+    const measured = lastMeasured[key];
     const tr = document.createElement('tr');
     if(key===state.configKey) tr.className='current';
     const kCalc = s.k;
